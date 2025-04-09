@@ -26,18 +26,18 @@ if uploaded_file:
         st.subheader("Raw Data for Selected Student")
         st.dataframe(student_data)
 
-        # Select only numeric columns (i.e., attendance columns)
+        # Select only numeric columns (attendance columns)
         attendance_data = student_data.select_dtypes(include='number').T
         attendance_data.columns = ['Attendance']
         attendance_data['Subject'] = attendance_data.index
 
-        # Show summary
+        # Calculate total
         total_attendance = attendance_data['Attendance'].sum()
         st.metric(label="Total Attendance", value=int(total_attendance))
 
         # Plot
         st.subheader("Subject-wise Attendance")
-        fig = px.bar(attendance_data, x='Subject', y='Attendance', text='Attendance')
+        fig = px.bar(attendance_data, x='Subject', y='Attendance', text='Attendance', title="Attendance per Subject")
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("PRN not found.")
