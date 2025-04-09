@@ -2,55 +2,52 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-st.title("Attendance Monitoring System")
+st.set_page_config(page_title="Attendance Monitor", layout="wide")
+st.title("Student Attendance Monitoring")
 
-# File uploader
-uploaded_file = st.file_uploader("Upload Excel File", type=["xlsx"])
+uploaded_file = st.file_uploader("Upload Attendance Excel File", type=["xlsx", "xls"])
 
-if uploaded_file is not None:
-    df = pd.read_excel(uploaded_file, skiprows=5)
-    st.write("Columns in uploaded file:", df.columns)  # Debugging step
-    
-    # Ensure the required columns exist
-    required_columns = {'PRN', 'Name'}
-    if not required_columns.issubset(df.columns):
-        st.error("The uploaded file does not contain the required columns: 'PRN' and 'Name'.")
-    else:
-        df.columns.values[0:3] = ['Sr.No', 'PRN', 'Name']
-        df.dropna(subset=['PRN', 'Name'], inplace=True)
+if uploaded_file:
+    try:
+        # Load and clean data
+        df = pd.read_excel(uploaded_file, index_col=0)
+        df.index = df.index.astype(str).str.strip()  # Clean index
+        st.subheader("Raw Attendance Data")
+        st.dataframe(df)
 
-        prn_input = st.text_input("Enter PRN or Student Name")
+        if 'Total' in df.index:
+            total_lectures = df.loc['Total']
+            df = df.drop(index='Total')
 
-        if prn_input:
-            student = df[df['PRN'].astype(str).str.lower() == prn_input.lower()]
-            if student.empty:
-                student = df[df['Name'].str.lower().str.contains(prn_input.lower(), na=False)]
+            # Attendance percentage per subject
+            attendance_percent = (df / total_lectures) * 100
+            attendance_percent = attendance_percent.round(2)
 
-            if student.empty:
-                st.warning("Student not found.")
-            else:
-                student_data = student.iloc[0]  # Safe access now
-                st.success(f"Found: {student_data['Name']} (PRN: {student_data['PRN']})")
+            # Dropdown to select student
+            student_names = attendance_percent.index.tolist()
+            selected_student = st.selectbox("Select a student to view details", student_names)
 
-                # Extract attendance columns
-                attendance = student_data.filter(like='Per')
+            if selected_student:
+                st.subheader(f"Attendance for {selected_student}")
 
-                # Convert attendance values to float safely
-                def clean_attendance(value):
-                    try:
-                        return float(str(value).replace('%', '').strip())
-                    except:
-                        return 0  # Default to 0 if conversion fails
+                # Subject-wise attendance bar chart
+                st.markdown("**Subject-wise Attendance (%)**")
+                st.bar_chart(attendance_percent.loc[selected_student])
 
-                attendance_clean = attendance.apply(clean_attendance)
+                # Optional Pie chart
+                st.markdown("**Overall Attendance vs Absence (Pie Chart)**")
+                attended = df.loc[selected_student].sum()
+                total = total_lectures.sum()
+                absent = total - attended
 
-                st.write("Subject-wise Attendance:")
-                st.dataframe(attendance_clean)
-
-                # Graph
                 fig, ax = plt.subplots()
-                attendance_clean.plot(kind='bar', ax=ax, color='skyblue')
-                plt.ylim(0, 100)
+                ax.pie([attended, absent], labels=['Attended', 'Absent'], autopct='%1.1f%%', colors=['green', 'red'])
+                ax.axis('equal')
                 st.pyplot(fig)
+
+        else:
+            st.error("Could not find a row labeled 'Total'. Please make sure the last row has that label.")
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
 else:
-    st.warning("Please upload an Excel file.")
+    st.info("Please upload an Excel file to begin.")
