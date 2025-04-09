@@ -1,63 +1,43 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
 
-st.set_page_config(page_title="Attendance Dashboard", layout="centered")
-st.title("Student Attendance Dashboard")
+st.set_page_config(page_title="Attendance Monitor", layout="wide")
+st.title("Student Attendance Monitoring System")
 
-uploaded_file = st.file_uploader("Upload your attendance Excel file", type=["xlsx"])
+uploaded_file = st.file_uploader("Upload Attendance Excel File", type=["xlsx"])
 
 if uploaded_file:
-    try:
-        # Read the file and clean index
-        df = pd.read_excel(uploaded_file, index_col=0)
-        df.index = df.index.astype(str).str.strip()
-        
-        st.subheader("Raw Attendance Data")
-        st.dataframe(df)
+    df = pd.read_excel(uploaded_file)
 
-        # Check for 'Total' row
-        if 'Total' in df.index:
-            total_lectures = df.loc['Total']
-            df = df.drop(index='Total')
+    # Clean column headers
+    df.columns = [str(col).strip() for col in df.columns]
 
-            # Compute attendance percentage
-            attendance_percent = (df / total_lectures) * 100
-            attendance_percent = attendance_percent.round(2)
+    st.success("File uploaded successfully!")
 
-            # Dropdown to select a student
-            student_names = attendance_percent.index.tolist()
-            selected_student = st.selectbox("Select a student", student_names)
+    # Ask for PRN
+    prn_list = df['prn'].dropna().unique()
+    selected_prn = st.selectbox("Select PRN", prn_list)
 
-            if selected_student:
-                st.subheader(f"Subject-wise Attendance for {selected_student}")
-                
-                # Show bar chart
-                st.bar_chart(attendance_percent.loc[selected_student])
+    # Filter data for selected PRN
+    student_data = df[df['prn'] == selected_prn]
 
-                # Pie chart of attendance vs absence
-                attended = df.loc[selected_student].sum()
-                total = total_lectures.sum()
-                absent = total - attended
+    if not student_data.empty:
+        st.subheader("Raw Data for Selected Student")
+        st.dataframe(student_data)
 
-                fig, ax = plt.subplots()
-                ax.pie(
-                    [attended, absent],
-                    labels=['Attended', 'Missed'],
-                    autopct='%1.1f%%',
-                    startangle=90,
-                    colors=['green', 'red']
-                )
-                ax.axis('equal')
-                st.pyplot(fig)
+        # Select only numeric columns (i.e., attendance columns)
+        attendance_data = student_data.select_dtypes(include='number').T
+        attendance_data.columns = ['Attendance']
+        attendance_data['Subject'] = attendance_data.index
 
-                # Show overall percentage
-                overall = (attended / total) * 100
-                st.success(f"**Overall Attendance: {overall:.2f}%**")
+        # Show summary
+        total_attendance = attendance_data['Attendance'].sum()
+        st.metric(label="Total Attendance", value=int(total_attendance))
 
-        else:
-            st.error("The sheet must include a row labeled 'Total' to calculate percentages.")
-    except Exception as e:
-        st.error(f"Error reading file: {e}")
-else:
-    st.info("Upload your Excel file to begin.")
+        # Plot
+        st.subheader("Subject-wise Attendance")
+        fig = px.bar(attendance_data, x='Subject', y='Attendance', text='Attendance')
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("PRN not found.")
