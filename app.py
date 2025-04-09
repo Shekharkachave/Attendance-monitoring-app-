@@ -2,52 +2,62 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Attendance Monitor", layout="wide")
-st.title("Student Attendance Monitoring")
+st.set_page_config(page_title="Attendance Dashboard", layout="centered")
+st.title("Student Attendance Dashboard")
 
-uploaded_file = st.file_uploader("Upload Attendance Excel File", type=["xlsx", "xls"])
+uploaded_file = st.file_uploader("Upload your attendance Excel file", type=["xlsx"])
 
 if uploaded_file:
     try:
-        # Load and clean data
+        # Read the file and clean index
         df = pd.read_excel(uploaded_file, index_col=0)
-        df.index = df.index.astype(str).str.strip()  # Clean index
+        df.index = df.index.astype(str).str.strip()
+        
         st.subheader("Raw Attendance Data")
         st.dataframe(df)
 
+        # Check for 'Total' row
         if 'Total' in df.index:
             total_lectures = df.loc['Total']
             df = df.drop(index='Total')
 
-            # Attendance percentage per subject
+            # Compute attendance percentage
             attendance_percent = (df / total_lectures) * 100
             attendance_percent = attendance_percent.round(2)
 
-            # Dropdown to select student
+            # Dropdown to select a student
             student_names = attendance_percent.index.tolist()
-            selected_student = st.selectbox("Select a student to view details", student_names)
+            selected_student = st.selectbox("Select a student", student_names)
 
             if selected_student:
-                st.subheader(f"Attendance for {selected_student}")
-
-                # Subject-wise attendance bar chart
-                st.markdown("**Subject-wise Attendance (%)**")
+                st.subheader(f"Subject-wise Attendance for {selected_student}")
+                
+                # Show bar chart
                 st.bar_chart(attendance_percent.loc[selected_student])
 
-                # Optional Pie chart
-                st.markdown("**Overall Attendance vs Absence (Pie Chart)**")
+                # Pie chart of attendance vs absence
                 attended = df.loc[selected_student].sum()
                 total = total_lectures.sum()
                 absent = total - attended
 
                 fig, ax = plt.subplots()
-                ax.pie([attended, absent], labels=['Attended', 'Absent'], autopct='%1.1f%%', colors=['green', 'red'])
+                ax.pie(
+                    [attended, absent],
+                    labels=['Attended', 'Missed'],
+                    autopct='%1.1f%%',
+                    startangle=90,
+                    colors=['green', 'red']
+                )
                 ax.axis('equal')
                 st.pyplot(fig)
 
+                # Show overall percentage
+                overall = (attended / total) * 100
+                st.success(f"**Overall Attendance: {overall:.2f}%**")
+
         else:
-            st.error("Could not find a row labeled 'Total'. Please make sure the last row has that label.")
+            st.error("The sheet must include a row labeled 'Total' to calculate percentages.")
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"Error reading file: {e}")
 else:
-    st.info("Please upload an Excel file to begin.")
+    st.info("Upload your Excel file to begin.")
